@@ -2,7 +2,7 @@
 // ===========================================
 // Admin Dashboard (with JWT & Analytics)
 // ===========================================
-require_once "auth/check_auth.php";
+require_once "../auth/check_auth.php";
 require_once "config/config.php";
 include "includes/header.php";
 
@@ -173,7 +173,7 @@ $orders = $pdo->query("
 <div class="dashboard-container">
   <div class="dashboard-header">
     <h1>Welcome, <?= htmlspecialchars($_SESSION['admin_role'] ?? 'Admin') ?></h1>
-    <a href="auth/logout.php" class="logout-btn">Logout</a>
+    <a href="../auth/logout.php" class="logout-btn">Logout</a>
   </div>
 
   <!-- Stats -->

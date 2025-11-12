@@ -1,7 +1,7 @@
 <?php
-// admin/auth/refresh.php
-require_once "../config/config.php";
-require_once "jwt_helper.php";
+// auth/refresh.php
+require_once __DIR__ . '/../admin/config/config.php';
+require_once __DIR__ . '/jwt_helper.php';
 
 $refreshRaw = $_COOKIE['refresh_token'] ?? null;
 if (!$refreshRaw) {
@@ -53,3 +53,4 @@ setAuthCookies($newAccess, $newRefreshRaw, time() + REFRESH_TOKEN_EXP_SECONDS);
 
 echo json_encode(['success' => true]);
 exit;
+

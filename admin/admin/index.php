@@ -1,5 +1,5 @@
 <?php
-require_once "../auth/check_auth.php";
+require_once "../../auth/check_auth.php";
 require_once "../config/config.php";
 include "../includes/header.php";
 

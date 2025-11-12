@@ -1,6 +1,6 @@
 <?php
-require_once "../config/config.php";
-require_once "jwt_helper.php";
+require_once __DIR__ . '/../admin/config/config.php';
+require_once __DIR__ . '/jwt_helper.php';
 session_start();
 
 $refreshRaw = $_COOKIE['refresh_token'] ?? null;
@@ -18,5 +18,7 @@ if ($refreshRaw) {
 clearAuthCookies();
 session_unset();
 session_destroy();
+// Redirect to login page (same directory)
 header("Location: login.php?msg=Logged out");
 exit;
+

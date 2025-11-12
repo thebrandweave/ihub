@@ -1,12 +1,25 @@
 <?php
-// admin/auth/check_auth.php
-require_once __DIR__ . '/../config/config.php';
+// auth/check_auth.php
+require_once __DIR__ . '/../admin/config/config.php';
 require_once __DIR__ . '/jwt_helper.php';
 session_start();
 
 // helper to redirect to login
 function redirectToLogin() {
-    header("Location: ../auth/login.php");
+    // Get base path from script name - find the project root
+    $script = $_SERVER['SCRIPT_NAME'] ?? '';
+    // Remove /admin/ or /auth/ and everything after to get base path
+    if (preg_match('#^(/.+?)/(admin|auth)/#', $script, $matches)) {
+        $basePath = $matches[1];
+    } else {
+        // Fallback: go up from current script location
+        $basePath = dirname(dirname($script));
+        $basePath = rtrim($basePath, '/');
+    }
+    if (empty($basePath) || $basePath === '.') {
+        $basePath = '';
+    }
+    header("Location: {$basePath}/auth/login.php");
     exit;
 }
 
@@ -70,3 +83,4 @@ setAuthCookies($newAccess, $newRefreshRaw, time() + REFRESH_TOKEN_EXP_SECONDS);
 
 $_SESSION['admin_id'] = $user['user_id'];
 $_SESSION['admin_role'] = $user['role'];
+

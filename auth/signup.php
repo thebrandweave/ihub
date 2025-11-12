@@ -1,8 +1,6 @@
 <?php
-// ===========================================
-// Temporary Signup Page (for testing)
-// ===========================================
-require_once "../config/config.php";
+// auth/signup.php
+require_once __DIR__ . '/../admin/config/config.php';
 session_start();
 
 $message = "";
@@ -47,6 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       justify-content: center;
       align-items: center;
       height: 100vh;
+      margin: 0;
     }
 
     .signup-box {
@@ -69,6 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       margin-bottom: 15px;
       border: 1px solid #ccc;
       border-radius: 6px;
+      font-size: 14px;
     }
 
     button {
@@ -79,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       border-radius: 6px;
       cursor: pointer;
       width: 95%;
+      font-size: 16px;
       transition: 0.3s;
     }
 
@@ -97,12 +98,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     p {
       font-size: 14px;
+      margin-top: 15px;
     }
   </style>
 </head>
 <body>
   <div class="signup-box">
-    <h2>Temporary Signup</h2>
+    <h2>Sign Up</h2>
     <?= $message ?>
     <form method="POST">
       <input type="text" name="name" placeholder="Full Name" required><br>

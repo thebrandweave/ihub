@@ -13,7 +13,7 @@
       <a href="../category/index.php">Categories</a>
       <a href="../product/index.php">Products</a>
       <a href="../order/index.php">Orders</a>
-      <a href="../auth/logout.php" style="color:red;">Logout</a>
+      <a href="../../auth/logout.php" style="color:red;">Logout</a>
     </nav>
   </header>
   <main>
