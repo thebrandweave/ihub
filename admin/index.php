@@ -42,212 +42,75 @@ $orders = $pdo->query("
     LIMIT 5
 ")->fetchAll(PDO::FETCH_ASSOC);
 ?>
-
-<style>
-  body {
-    font-family: 'Segoe UI', sans-serif;
-    background-color: #f8f9fb;
-    margin: 0;
-    padding: 0;
-  }
-
-  .dashboard-container {
-    max-width: 1100px;
-    margin: 60px auto;
-    padding: 20px;
-  }
-
-  .dashboard-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .dashboard-header h1 {
-    font-size: 26px;
-    font-weight: 600;
-    color: #333;
-  }
-
-  .logout-btn {
-    background-color: #ff4d4d;
-    color: white;
-    padding: 10px 20px;
-    border-radius: 6px;
-    text-decoration: none;
-    transition: 0.3s;
-  }
-
-  .logout-btn:hover {
-    background-color: #e60000;
-  }
-
-  .card-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 20px;
-    margin-top: 30px;
-  }
-
-  .stat-card {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    padding: 25px;
-    text-align: center;
-    transition: transform 0.2s ease;
-  }
-
-  .stat-card:hover {
-    transform: translateY(-4px);
-  }
-
-  .stat-title {
-    font-size: 15px;
-    color: #666;
-  }
-
-  .stat-value {
-    font-size: 28px;
-    font-weight: bold;
-    color: #111;
-    margin-top: 5px;
-  }
-
-  .section {
-    margin-top: 50px;
-  }
-
-  .section h2 {
-    font-size: 20px;
-    margin-bottom: 15px;
-  }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    background: white;
-    border-radius: 10px;
-    overflow: hidden;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-  }
-
-  th, td {
-    padding: 14px;
-    border-bottom: 1px solid #f1f1f1;
-    text-align: left;
-  }
-
-  th {
-    background-color: #f6f6f6;
-    font-weight: 600;
-    color: #333;
-  }
-
-  tr:hover {
-    background-color: #f9f9f9;
-  }
-
-  .alert-box {
-    background: #fff3cd;
-    color: #856404;
-    padding: 15px;
-    border-radius: 10px;
-    margin-bottom: 20px;
-    border: 1px solid #ffeeba;
-  }
-
-  .chart-container {
-    background: white;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-  }
-
-  canvas {
-    max-width: 100%;
-    height: 300px;
-  }
-</style>
-
-<div class="dashboard-container">
-  <div class="dashboard-header">
-    <h1>Welcome, <?= htmlspecialchars($_SESSION['admin_role'] ?? 'Admin') ?></h1>
-    <a href="../auth/logout.php" class="logout-btn">Logout</a>
-  </div>
-
-  <!-- Stats -->
-  <div class="card-grid">
-    <div class="stat-card">
-      <div class="stat-title">Customers</div>
-      <div class="stat-value"><?= $totalUsers ?></div>
+<!-- Stats -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
+    <div class="bg-white p-6 rounded-lg shadow-md text-center">
+      <div class="text-sm font-medium text-gray-500">Customers</div>
+      <div class="text-3xl font-bold text-gray-800 mt-1"><?= $totalUsers ?></div>
     </div>
-    <div class="stat-card">
-      <div class="stat-title">Admins</div>
-      <div class="stat-value"><?= $totalAdmins ?></div>
+    <div class="bg-white p-6 rounded-lg shadow-md text-center">
+      <div class="text-sm font-medium text-gray-500">Admins</div>
+      <div class="text-3xl font-bold text-gray-800 mt-1"><?= $totalAdmins ?></div>
     </div>
-    <div class="stat-card">
-      <div class="stat-title">Products</div>
-      <div class="stat-value"><?= $totalProducts ?></div>
+    <div class="bg-white p-6 rounded-lg shadow-md text-center">
+      <div class="text-sm font-medium text-gray-500">Products</div>
+      <div class="text-3xl font-bold text-gray-800 mt-1"><?= $totalProducts ?></div>
     </div>
-    <div class="stat-card">
-      <div class="stat-title">Orders</div>
-      <div class="stat-value"><?= $totalOrders ?></div>
+    <div class="bg-white p-6 rounded-lg shadow-md text-center">
+      <div class="text-sm font-medium text-gray-500">Orders</div>
+      <div class="text-3xl font-bold text-gray-800 mt-1"><?= $totalOrders ?></div>
     </div>
-    <div class="stat-card">
-      <div class="stat-title">Pending Orders</div>
-      <div class="stat-value"><?= $pendingOrders ?></div>
+    <div class="bg-white p-6 rounded-lg shadow-md text-center">
+      <div class="text-sm font-medium text-gray-500">Pending Orders</div>
+      <div class="text-3xl font-bold text-gray-800 mt-1"><?= $pendingOrders ?></div>
     </div>
-  </div>
-
-  <!-- Alerts -->
-  <div class="section">
-    <h2>⚠️ Alerts</h2>
+</div>
+<!-- Alerts -->
+<div class="mb-6">
+    <h2 class="text-xl font-semibold text-gray-700 mb-3">⚠️ Alerts</h2>
     <?php if (count($lowStockProducts) > 0): ?>
-      <div class="alert-box">
+      <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md" role="alert">
         <strong>Low Stock Alert:</strong><br>
         <?php foreach ($lowStockProducts as $p): ?>
           <?= htmlspecialchars($p['name']) ?> — <b><?= $p['stock'] ?> left</b><br>
         <?php endforeach; ?>
       </div>
     <?php else: ?>
-      <div class="alert-box" style="background:#d4edda; color:#155724; border-color:#c3e6cb;">
+      <div class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md" role="alert">
         ✅ All products have sufficient stock.
       </div>
     <?php endif; ?>
-  </div>
-
+</div>
+<!-- Main content grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
   <!-- Sales Chart -->
-  <div class="section">
-    <h2>📊 Sales Analytics (Last 7 Days)</h2>
-    <div class="chart-container">
+  <div class="lg:col-span-2">
+    <h2 class="text-xl font-semibold text-gray-700 mb-3">📊 Sales Analytics (Last 7 Days)</h2>
+    <div class="bg-white p-6 rounded-lg shadow-md">
       <canvas id="salesChart"></canvas>
     </div>
   </div>
-
   <!-- Recent Orders -->
-  <div class="section">
-    <h2>🧾 Recent Orders</h2>
-    <table>
-      <tr>
-        <th>ID</th>
-        <th>Customer</th>
-        <th>Total</th>
-        <th>Status</th>
-        <th>Date</th>
-      </tr>
-      <?php if ($orders): foreach ($orders as $order): ?>
-        <tr>
-          <td>#<?= $order['order_id'] ?></td>
-          <td><?= htmlspecialchars($order['full_name']) ?></td>
-          <td>₹<?= number_format($order['total_amount'], 2) ?></td>
-          <td><?= ucfirst($order['status']) ?></td>
-          <td><?= date("d M Y", strtotime($order['order_date'])) ?></td>
-        </tr>
-      <?php endforeach; else: ?>
-        <tr><td colspan="5" style="text-align:center;">No orders found.</td></tr>
-      <?php endif; ?>
-    </table>
+  <div>
+    <h2 class="text-xl font-semibold text-gray-700 mb-3">🧾 Recent Orders</h2>
+    <div class="bg-white rounded-lg shadow-md">
+      <div class="divide-y divide-gray-200">
+        <?php if ($orders): foreach ($orders as $order): ?>
+          <div class="p-4 flex justify-between items-center">
+            <div>
+              <p class="font-semibold text-gray-800"><?= htmlspecialchars($order['full_name']) ?></p>
+              <p class="text-sm text-gray-500">#<?= $order['order_id'] ?> - <?= date("d M Y", strtotime($order['order_date'])) ?></p>
+            </div>
+            <div class="text-right">
+              <p class="font-semibold text-gray-800">₹<?= number_format($order['total_amount'], 2) ?></p>
+              <p class="text-sm text-gray-500"><?= ucfirst($order['status']) ?></p>
+            </div>
+          </div>
+        <?php endforeach; else: ?>
+          <p class="p-4 text-center text-gray-500">No recent orders found.</p>
+        <?php endif; ?>
+      </div>
+    </div>
   </div>
 </div>
 

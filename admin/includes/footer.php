@@ -1,6 +1,6 @@
-  </main>
-  <footer>
-    <p>© 2025 Electronics Shop Admin Panel</p>
-  </footer>
+                </div>
+            </main>
+        </div> <!-- .flex-1 -->
+    </div> <!-- .flex -->
 </body>
 </html>
