@@ -10,6 +10,93 @@ function generateSlug(string $text): string
     return $slug;
 }
 
+function validateImageFile($file): array
+{
+    $errors = [];
+    
+    if ($file['error'] !== UPLOAD_ERR_OK) {
+        if ($file['error'] === UPLOAD_ERR_INI_SIZE || $file['error'] === UPLOAD_ERR_FORM_SIZE) {
+            $errors[] = "File size exceeds maximum allowed size (5MB).";
+        } elseif ($file['error'] === UPLOAD_ERR_NO_FILE) {
+            // No file uploaded is okay (optional field)
+            return ['valid' => false, 'errors' => []];
+        } else {
+            $errors[] = "File upload error: " . $file['error'];
+        }
+        return ['valid' => false, 'errors' => $errors];
+    }
+    
+    // Check file size (5MB max)
+    $maxSize = 5 * 1024 * 1024; // 5MB in bytes
+    if ($file['size'] > $maxSize) {
+        $errors[] = "File size exceeds maximum allowed size (5MB).";
+        return ['valid' => false, 'errors' => $errors];
+    }
+    
+    // Check file type
+    $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mimeType = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    
+    if (!in_array($mimeType, $allowedTypes, true)) {
+        $errors[] = "Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.";
+        return ['valid' => false, 'errors' => $errors];
+    }
+    
+    return ['valid' => true, 'errors' => []];
+}
+
+function uploadImageFile($file, $uploadDir): ?string
+{
+    $validation = validateImageFile($file);
+    if (!$validation['valid']) {
+        return null;
+    }
+    
+    // Generate unique filename
+    $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+    $filename = uniqid('product_', true) . '_' . time() . '.' . $extension;
+    $targetPath = $uploadDir . '/' . $filename;
+    
+    // Ensure upload directory exists
+    if (!is_dir($uploadDir)) {
+        mkdir($uploadDir, 0755, true);
+    }
+    
+    if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+        // Return only filename (not full path) to store in database
+        return $filename;
+    }
+    
+    return null;
+}
+
+function deleteImageFile($filename, $uploadDir): void
+{
+    if ($filename) {
+        $fullPath = $uploadDir . '/' . $filename;
+        if (file_exists($fullPath)) {
+            @unlink($fullPath);
+        }
+    }
+}
+
+function getImagePath($filename): string
+{
+    if (!$filename) {
+        return '';
+    }
+    
+    // If it's already a full URL or absolute path, return as is
+    if (strpos($filename, 'http') === 0 || strpos($filename, '/') === 0) {
+        return $filename;
+    }
+    
+    // Construct path relative to project root
+    return '/uploads/products/' . $filename;
+}
+
 $productId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($productId <= 0) {
     header("Location: index.php?error=Invalid product selection.");
@@ -31,6 +118,7 @@ $existingImages = $imageStmt->fetchAll(PDO::FETCH_COLUMN);
 
 $categories = $pdo->query("SELECT category_id, name FROM categories ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
 $errors = [];
+$uploadDir = __DIR__ . '/../../uploads/products';
 
 $formData = [
     'name' => $product['name'] ?? '',
@@ -42,8 +130,7 @@ $formData = [
     'stock' => $product['stock'] ?? '',
     'discount' => $product['discount'] ?? '',
     'thumbnail' => $product['thumbnail'] ?? '',
-    'status' => $product['status'] ?? 'active',
-    'image_urls' => implode(PHP_EOL, $existingImages)
+    'status' => $product['status'] ?? 'active'
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -80,8 +167,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $formData['slug'] = generateSlug($formData['name']);
     }
 
-    $imageUrls = array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $formData['image_urls'])));
-
     if (!empty($formData['slug'])) {
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM products WHERE slug = ? AND product_id <> ?");
         $stmt->execute([$formData['slug'], $productId]);
@@ -90,16 +175,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Handle thumbnail upload
+    $thumbnailPath = $product['thumbnail'] ?? null;
+    $oldThumbnailPath = $thumbnailPath;
+    if (isset($_FILES['thumbnail']) && $_FILES['thumbnail']['error'] !== UPLOAD_ERR_NO_FILE) {
+        $validation = validateImageFile($_FILES['thumbnail']);
+        if (!$validation['valid']) {
+            $errors = array_merge($errors, $validation['errors']);
+        } else {
+            $newThumbnailPath = uploadImageFile($_FILES['thumbnail'], $uploadDir);
+            if ($newThumbnailPath === null) {
+                $errors[] = "Failed to upload thumbnail image.";
+            } else {
+                $thumbnailPath = $newThumbnailPath;
+            }
+        }
+    }
+
+    // Handle product images upload
+    $uploadedImages = [];
+    if (isset($_FILES['product_images']) && is_array($_FILES['product_images']['name'])) {
+        $imageCount = count($_FILES['product_images']['name']);
+        for ($i = 0; $i < $imageCount; $i++) {
+            if ($_FILES['product_images']['error'][$i] === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+            
+            $file = [
+                'name' => $_FILES['product_images']['name'][$i],
+                'type' => $_FILES['product_images']['type'][$i],
+                'tmp_name' => $_FILES['product_images']['tmp_name'][$i],
+                'error' => $_FILES['product_images']['error'][$i],
+                'size' => $_FILES['product_images']['size'][$i]
+            ];
+            
+            $validation = validateImageFile($file);
+            if (!$validation['valid']) {
+                $errors = array_merge($errors, $validation['errors']);
+            } else {
+                $imagePath = uploadImageFile($file, $uploadDir);
+                if ($imagePath !== null) {
+                    $uploadedImages[] = $imagePath;
+                } else {
+                    $errors[] = "Failed to upload image: " . $file['name'];
+                }
+            }
+        }
+    }
+
+    // Set thumbnail to first uploaded image if not provided and no existing thumbnail
+    if ($thumbnailPath === null && !empty($uploadedImages)) {
+        $thumbnailPath = $uploadedImages[0];
+    }
+
     if (empty($errors)) {
         $price = number_format((float)$formData['price'], 2, '.', '');
         $stock = (int)$formData['stock'];
         $discount = ($formData['discount'] === '') ? null : number_format((float)$formData['discount'], 2, '.', '');
         $categoryId = $formData['category_id'] !== '' ? (int)$formData['category_id'] : null;
-        $thumbnail = $formData['thumbnail'];
-
-        if ($thumbnail === '' && !empty($imageUrls)) {
-            $thumbnail = $imageUrls[0];
-        }
 
         try {
             $pdo->beginTransaction();
@@ -128,26 +261,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':price' => $price,
                 ':stock' => $stock,
                 ':discount' => $discount,
-                ':thumbnail' => $thumbnail !== '' ? $thumbnail : null,
+                ':thumbnail' => $thumbnailPath,
                 ':status' => $formData['status'],
                 ':product_id' => $productId
             ]);
 
-            $pdo->prepare("DELETE FROM product_images WHERE product_id = ?")->execute([$productId]);
-
-            if (!empty($imageUrls)) {
+            // Get old images to delete if they're being replaced
+            $oldImages = $existingImages;
+            
+            // Delete old product images if new ones are uploaded
+            if (!empty($uploadedImages)) {
+                $pdo->prepare("DELETE FROM product_images WHERE product_id = ?")->execute([$productId]);
+                
                 $insertImage = $pdo->prepare("
                     INSERT INTO product_images (product_id, image_url, is_primary)
                     VALUES (:product_id, :image_url, :is_primary)
                 ");
 
-                foreach ($imageUrls as $index => $url) {
+                foreach ($uploadedImages as $index => $imagePath) {
                     $insertImage->execute([
                         ':product_id' => $productId,
-                        ':image_url' => $url,
+                        ':image_url' => $imagePath,
                         ':is_primary' => $index === 0 ? 1 : 0
                     ]);
                 }
+                
+                // Delete old image files
+                foreach ($oldImages as $oldImage) {
+                    // Handle both old format (full path) and new format (filename only)
+                    $oldFilename = strpos($oldImage, 'uploads/products/') === 0 
+                        ? basename($oldImage) 
+                        : $oldImage;
+                    deleteImageFile($oldFilename, $uploadDir);
+                }
+            }
+
+            // Delete old thumbnail if it was replaced
+            if ($thumbnailPath !== $oldThumbnailPath && $oldThumbnailPath) {
+                // Handle both old format (full path) and new format (filename only)
+                $oldThumbFilename = strpos($oldThumbnailPath, 'uploads/products/') === 0 
+                    ? basename($oldThumbnailPath) 
+                    : $oldThumbnailPath;
+                deleteImageFile($oldThumbFilename, $uploadDir);
             }
 
             $pdo->commit();
@@ -156,6 +311,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         } catch (PDOException $e) {
             $pdo->rollBack();
+            // Clean up uploaded files on error
+            if ($thumbnailPath !== $oldThumbnailPath && $thumbnailPath && file_exists($uploadDir . '/' . $thumbnailPath)) {
+                @unlink($uploadDir . '/' . $thumbnailPath);
+            }
+            foreach ($uploadedImages as $imagePath) {
+                if (file_exists($uploadDir . '/' . $imagePath)) {
+                    @unlink($uploadDir . '/' . $imagePath);
+                }
+            }
             $errors[] = "Failed to update product: " . $e->getMessage();
         }
     }
@@ -179,7 +343,7 @@ include "../includes/header.php";
     </div>
 <?php endif; ?>
 
-<form method="POST" class="space-y-6">
+<form method="POST" enctype="multipart/form-data" class="space-y-6">
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
             <label for="name" class="block text-sm font-medium text-gray-700">Product Name *</label>
@@ -195,14 +359,19 @@ include "../includes/header.php";
         </div>
         <div>
             <label for="category_id" class="block text-sm font-medium text-gray-700">Category</label>
-            <select name="category_id" id="category_id" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                <option value="">-- Select category --</option>
-                <?php foreach ($categories as $category): ?>
-                    <option value="<?= (int)$category['category_id'] ?>" <?= ($formData['category_id'] !== '' && (int)$formData['category_id'] === (int)$category['category_id']) ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($category['name'], ENT_QUOTES, 'UTF-8') ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
+            <div class="flex gap-2">
+                <select name="category_id" id="category_id" class="mt-1 flex-1 px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">-- Select category --</option>
+                    <?php foreach ($categories as $category): ?>
+                        <option value="<?= (int)$category['category_id'] ?>" <?= ($formData['category_id'] !== '' && (int)$formData['category_id'] === (int)$category['category_id']) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($category['name'], ENT_QUOTES, 'UTF-8') ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="button" id="createCategoryBtn" class="mt-1 px-4 py-2 bg-green-500 hover:bg-green-700 text-white font-bold rounded text-sm whitespace-nowrap">
+                    + New
+                </button>
+            </div>
         </div>
         <div>
             <label for="price" class="block text-sm font-medium text-gray-700">Price (₱) *</label>
@@ -224,12 +393,31 @@ include "../includes/header.php";
             </select>
         </div>
         <div class="md:col-span-2">
-            <label for="thumbnail" class="block text-sm font-medium text-gray-700">Thumbnail URL</label>
-            <input type="url" name="thumbnail" id="thumbnail" value="<?= htmlspecialchars($formData['thumbnail'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Optional. Defaults to first image URL." class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+            <label for="thumbnail" class="block text-sm font-medium text-gray-700">Thumbnail Image</label>
+            <?php if (!empty($product['thumbnail'])): ?>
+                <div class="mb-2">
+                    <p class="text-sm text-gray-600 mb-1">Current thumbnail:</p>
+                    <img src="<?= htmlspecialchars(getImagePath($product['thumbnail']), ENT_QUOTES, 'UTF-8') ?>" alt="Current thumbnail" class="w-32 h-32 object-cover rounded border border-gray-300">
+                </div>
+            <?php endif; ?>
+            <input type="file" name="thumbnail" id="thumbnail" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+            <p class="mt-1 text-sm text-gray-500">Optional. Upload a new thumbnail image (JPEG, PNG, GIF, or WebP, max 5MB). Leave empty to keep current thumbnail.</p>
         </div>
         <div class="md:col-span-2">
-            <label for="image_urls" class="block text-sm font-medium text-gray-700">Image URLs</label>
-            <textarea name="image_urls" id="image_urls" rows="5" placeholder="Enter one image URL per line. The first image becomes the primary image." class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"><?= htmlspecialchars($formData['image_urls'], ENT_QUOTES, 'UTF-8') ?></textarea>
+            <label for="product_images" class="block text-sm font-medium text-gray-700">Product Images</label>
+            <?php if (!empty($existingImages)): ?>
+                <div class="mb-2">
+                    <p class="text-sm text-gray-600 mb-1">Current images (<?= count($existingImages) ?>):</p>
+                    <div class="flex flex-wrap gap-2">
+                        <?php foreach ($existingImages as $img): ?>
+                            <img src="<?= htmlspecialchars(getImagePath($img), ENT_QUOTES, 'UTF-8') ?>" alt="Product image" class="w-24 h-24 object-cover rounded border border-gray-300">
+                        <?php endforeach; ?>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">Uploading new images will replace all existing images.</p>
+                </div>
+            <?php endif; ?>
+            <input type="file" name="product_images[]" id="product_images" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" multiple class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+            <p class="mt-1 text-sm text-gray-500">Select multiple images (JPEG, PNG, GIF, or WebP, max 5MB each). The first image becomes the primary image. Leave empty to keep current images.</p>
         </div>
         <div class="md:col-span-2">
             <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
@@ -241,6 +429,137 @@ include "../includes/header.php";
         <a href="index.php" class="text-gray-500 hover:text-gray-700">Cancel</a>
     </div>
 </form>
+
+<!-- Create Category Modal -->
+<div id="categoryModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900">Create New Category</h3>
+                <button type="button" id="closeCategoryModal" class="text-gray-400 hover:text-gray-600">
+                    <span class="text-2xl">&times;</span>
+                </button>
+            </div>
+            <form id="createCategoryForm" class="space-y-4">
+                <div>
+                    <label for="new_category_name" class="block text-sm font-medium text-gray-700">Category Name *</label>
+                    <input type="text" name="name" id="new_category_name" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                    <label for="new_category_description" class="block text-sm font-medium text-gray-700">Description</label>
+                    <textarea name="description" id="new_category_description" rows="3" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"></textarea>
+                </div>
+                <div>
+                    <label for="new_category_parent" class="block text-sm font-medium text-gray-700">Parent Category (Optional)</label>
+                    <select name="parent_id" id="new_category_parent" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">-- None (Top Level) --</option>
+                        <?php foreach ($categories as $category): ?>
+                            <option value="<?= (int)$category['category_id'] ?>">
+                                <?= htmlspecialchars($category['name'], ENT_QUOTES, 'UTF-8') ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div id="categoryModalErrors" class="hidden text-red-600 text-sm"></div>
+                <div class="flex items-center justify-end space-x-3 pt-4">
+                    <button type="button" id="cancelCategoryBtn" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold rounded">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-500 hover:bg-blue-700 text-white font-bold rounded">Create Category</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('categoryModal');
+    const createBtn = document.getElementById('createCategoryBtn');
+    const closeBtn = document.getElementById('closeCategoryModal');
+    const cancelBtn = document.getElementById('cancelCategoryBtn');
+    const form = document.getElementById('createCategoryForm');
+    const categorySelect = document.getElementById('category_id');
+    const errorDiv = document.getElementById('categoryModalErrors');
+
+    function openModal() {
+        modal.classList.remove('hidden');
+    }
+
+    function closeModal() {
+        modal.classList.add('hidden');
+        form.reset();
+        errorDiv.classList.add('hidden');
+        errorDiv.textContent = '';
+    }
+
+    createBtn.addEventListener('click', openModal);
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+
+    // Close modal when clicking outside
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeModal();
+        }
+    });
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Creating...';
+        errorDiv.classList.add('hidden');
+        errorDiv.textContent = '';
+
+        fetch('create_category.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Add new category to dropdown
+                const option = document.createElement('option');
+                option.value = data.category.category_id;
+                option.textContent = data.category.name;
+                option.selected = true;
+                categorySelect.appendChild(option);
+                
+                // Also add to parent category dropdown in modal
+                const parentSelect = document.getElementById('new_category_parent');
+                const parentOption = document.createElement('option');
+                parentOption.value = data.category.category_id;
+                parentOption.textContent = data.category.name;
+                parentSelect.appendChild(parentOption);
+                
+                closeModal();
+            } else {
+                // Show errors
+                let errorText = '';
+                if (data.errors && Array.isArray(data.errors)) {
+                    errorText = data.errors.join('<br>');
+                } else if (data.error) {
+                    errorText = data.error;
+                } else {
+                    errorText = 'Failed to create category.';
+                }
+                errorDiv.innerHTML = errorText;
+                errorDiv.classList.remove('hidden');
+            }
+        })
+        .catch(error => {
+            errorDiv.textContent = 'An error occurred. Please try again.';
+            errorDiv.classList.remove('hidden');
+        })
+        .finally(() => {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        });
+    });
+});
+</script>
 
 <?php include "../includes/footer.php"; ?>
 

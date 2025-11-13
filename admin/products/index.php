@@ -36,6 +36,22 @@ $stmt = $pdo->query("
 ");
 $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Helper function to get image path
+function getImagePath($filename): string
+{
+    if (!$filename) {
+        return '';
+    }
+    
+    // If it's already a full URL or absolute path, return as is
+    if (strpos($filename, 'http') === 0 || strpos($filename, '/') === 0) {
+        return $filename;
+    }
+    
+    // Construct path relative to project root
+    return '../../uploads/products/' . $filename;
+}
+
 include "../includes/header.php";
 ?>
 
@@ -83,12 +99,14 @@ include "../includes/header.php";
                         <td class="py-3 px-4">
                             <div class="flex items-center space-x-3">
                                 <?php if (!empty($product['primary_image'])): ?>
-                                    <img src="<?= htmlspecialchars($product['primary_image'], ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?>" class="w-12 h-12 object-cover rounded">
+                                    <img src="<?= htmlspecialchars(getImagePath($product['primary_image']), ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?>" class="w-12 h-12 object-cover rounded">
                                 <?php else: ?>
                                     <div class="w-12 h-12 flex items-center justify-center bg-gray-200 text-gray-500 rounded">N/A</div>
                                 <?php endif; ?>
                                 <div>
-                                    <p class="font-semibold"><?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?></p>
+                                    <a href="view.php?id=<?= (int)$product['product_id'] ?>" class="font-semibold text-blue-600 hover:text-blue-800 hover:underline">
+                                        <?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?>
+                                    </a>
                                     <?php if (!empty($product['brand'])): ?>
                                         <p class="text-xs text-gray-500"><?= htmlspecialchars($product['brand'], ENT_QUOTES, 'UTF-8') ?></p>
                                     <?php endif; ?>
@@ -118,6 +136,7 @@ include "../includes/header.php";
                             </span>
                         </td>
                         <td class="py-3 px-4">
+                            <a href="view.php?id=<?= (int)$product['product_id'] ?>" class="text-green-500 hover:text-green-700 font-semibold mr-4">View</a>
                             <a href="edit.php?id=<?= (int)$product['product_id'] ?>" class="text-blue-500 hover:text-blue-700 font-semibold mr-4">Edit</a>
                             <a href="delete.php?id=<?= (int)$product['product_id'] ?>" class="text-red-500 hover:text-red-700 font-semibold" onclick="return confirm('Are you sure you want to delete this product?');">Delete</a>
                         </td>
