@@ -230,23 +230,23 @@
       </div>
 
       <ul class="nav">
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">Home</a>
+        <li class="nav-item">
+          <a class="nav-link" href="index.php">Home</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="shop.php">Shop</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="product.php">Product</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="collection.php">Collection</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="blog.php">Blog</a>
         </li>
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">Shop</a>
-        </li>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">Product</a>
-        </li>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">Collection</a>
-        </li>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">Blog</a>
-        </li>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">Pages</a>
+          <a class="nav-link" href="pages.php">Pages</a>
         </li>
       </ul>
 
