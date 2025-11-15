@@ -3,7 +3,7 @@
 // Admin Dashboard (with JWT & Analytics)
 // ===========================================
 require_once "../auth/check_auth.php";
-require_once "config/config.php";
+require_once "../config/config.php";
 include "includes/header.php";
 
 // Basic stats

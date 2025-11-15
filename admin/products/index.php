@@ -1,6 +1,6 @@
 <?php
 require_once "../../auth/check_auth.php";
-require_once "../config/config.php";
+require_once "../../config/config.php";
 
 $message = $_GET['msg'] ?? null;
 $error = $_GET['error'] ?? null;

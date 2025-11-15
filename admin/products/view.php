@@ -1,6 +1,6 @@
 <?php
 require_once "../../auth/check_auth.php";
-require_once "../config/config.php";
+require_once "../../config/config.php";
 
 $productId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($productId <= 0) {

@@ -1,3 +1,69 @@
+<?php
+// Connect to database and check customer authentication
+require_once __DIR__ . '/auth/customer_auth.php';
+
+// Fetch categories
+$categories = [];
+try {
+    $catStmt = $pdo->query("SELECT * FROM categories ORDER BY name ASC LIMIT 4");
+    $categories = $catStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $categories = [];
+}
+
+// Fetch trending products (active products with stock)
+$trendingProducts = [];
+try {
+    $trendStmt = $pdo->query("
+        SELECT p.*, c.name as category_name,
+               (SELECT image_url FROM product_images WHERE product_id = p.product_id AND is_primary = 1 LIMIT 1) as primary_image
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.category_id
+        WHERE p.status = 'active' AND p.stock > 0
+        ORDER BY p.created_at DESC
+        LIMIT 4
+    ");
+    $trendingProducts = $trendStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $trendingProducts = [];
+}
+
+// Fetch popular products (active products)
+$popularProducts = [];
+try {
+    $popStmt = $pdo->query("
+        SELECT p.*, c.name as category_name,
+               (SELECT image_url FROM product_images WHERE product_id = p.product_id AND is_primary = 1 LIMIT 1) as primary_image
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.category_id
+        WHERE p.status = 'active'
+        ORDER BY p.created_at DESC
+        LIMIT 6
+    ");
+    $popularProducts = $popStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $popularProducts = [];
+}
+
+// Helper function to get product image URL
+function getProductImage($product, $basePath = 'uploads/products/') {
+    if (!empty($product['primary_image'])) {
+        return $basePath . $product['primary_image'];
+    }
+    if (!empty($product['thumbnail'])) {
+        return $basePath . $product['thumbnail'];
+    }
+    return 'https://via.placeholder.com/300';
+}
+
+// Helper function to calculate price with discount
+function getFinalPrice($price, $discount) {
+    if ($discount > 0) {
+        return $price - ($price * $discount / 100);
+    }
+    return $price;
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -90,7 +156,7 @@
   <!-- Cart -->
   <div class="position-relative">
     <i class="bi bi-bag mh-icon"></i>
-    <span class="badge bg-light text-dark position-absolute top-0 start-100 translate-middle p-1">0</span>
+    <span class="badge bg-light text-dark position-absolute top-0 start-100 translate-middle p-1"><?= $cart_count ?></span>
   </div>
 </div>
 
@@ -138,11 +204,20 @@
     </div>
 
     <div class="mt-4">
+      <?php if ($customer_logged_in): ?>
+        <div class="menu-item">
+          <i class="bi bi-person me-2"></i> <?= htmlspecialchars($customer_name ?? 'Customer') ?>
+        </div>
+        <div class="menu-item">
+          <a href="auth/customer_logout.php" class="text-decoration-none text-dark"><i class="bi bi-box-arrow-right me-2"></i> Logout</a>
+        </div>
+      <?php else: ?>
+        <div class="menu-item" data-bs-toggle="modal" data-bs-target="#loginModal" style="cursor:pointer;">
+          <i class="bi bi-person me-2"></i> Sign in/Register
+        </div>
+      <?php endif; ?>
       <div class="menu-item">
-        <i class="bi bi-person me-2"></i> Sign in/Register
-      </div>
-      <div class="menu-item">
-        <i class="bi bi-heart me-2"></i> Wishlist
+        <i class="bi bi-heart me-2"></i> Wishlist <span class="badge bg-primary"><?= $wishlist_count ?></span>
       </div>
     </div>
 
@@ -198,16 +273,26 @@
       </div>
 
       <div class="d-flex gap-4 text-white align-items-center">
+        <?php if ($customer_logged_in): ?>
+          <div class="text-center" style="cursor:pointer;" data-bs-toggle="dropdown">
+            <i class="bi bi-person fs-4"></i>
+            <small class="d-block"><?= htmlspecialchars($customer_name ?? 'Customer') ?></small>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="auth/customer_logout.php">Logout</a></li>
+            </ul>
+          </div>
+        <?php else: ?>
+          <div class="text-center" style="cursor:pointer;" data-bs-toggle="modal" data-bs-target="#loginModal">
+            <i class="bi bi-person fs-4"></i>
+            <small class="d-block">Account</small>
+          </div>
+        <?php endif; ?>
         <div class="text-center" style="cursor:pointer;">
-          <i class="bi bi-person fs-4"></i>
-          <small class="d-block">Account</small>
-        </div>
-        <div class="text-center" style="cursor:pointer;">
-          <i class="bi bi-heart fs-4"></i><span class="badge bg-light text-dark ms-1">0</span>
+          <i class="bi bi-heart fs-4"></i><span class="badge bg-light text-dark ms-1"><?= $wishlist_count ?></span>
           <small class="d-block">Wishlist</small>
         </div>
         <div class="text-center" style="cursor:pointer;">
-          <i class="bi bi-bag fs-4"></i><span class="badge bg-light text-dark ms-1">0</span>
+          <i class="bi bi-bag fs-4"></i><span class="badge bg-light text-dark ms-1"><?= $cart_count ?></span>
           <small class="d-block">My cart</small>
         </div>
       </div>
@@ -223,9 +308,15 @@
           <i class="bi bi-grid"></i> All Departments
         </button>
         <ul class="dropdown-menu">
-          <li><a class="dropdown-item" href="#">Camping</a></li>
-          <li><a class="dropdown-item" href="#">Hiking</a></li>
-          <li><a class="dropdown-item" href="#">Accessories</a></li>
+          <?php if (!empty($categories)): ?>
+            <?php foreach ($categories as $cat): ?>
+              <li><a class="dropdown-item" href="#"><?= htmlspecialchars($cat['name']) ?></a></li>
+            <?php endforeach; ?>
+          <?php else: ?>
+            <li><a class="dropdown-item" href="#">Camping</a></li>
+            <li><a class="dropdown-item" href="#">Hiking</a></li>
+            <li><a class="dropdown-item" href="#">Accessories</a></li>
+          <?php endif; ?>
         </ul>
       </div>
 
@@ -310,30 +401,41 @@
   <div class="container">
     <h2 class="fw-bold mb-4">Top Categories</h2>
     <div class="row g-4">
-      <div class="col-6 col-md-3">
-        <div class="p-3 bg-light rounded text-center shadow-sm">
-          <img src="https://via.placeholder.com/150" class="w-50 mb-2">
-          <h6 class="fw-bold">Smartphones</h6>
+      <?php if (!empty($categories)): ?>
+        <?php foreach ($categories as $cat): ?>
+          <div class="col-6 col-md-3">
+            <div class="p-3 bg-light rounded text-center shadow-sm">
+              <img src="https://via.placeholder.com/150" class="w-50 mb-2">
+              <h6 class="fw-bold"><?= htmlspecialchars($cat['name']) ?></h6>
+            </div>
+          </div>
+        <?php endforeach; ?>
+      <?php else: ?>
+        <div class="col-6 col-md-3">
+          <div class="p-3 bg-light rounded text-center shadow-sm">
+            <img src="https://via.placeholder.com/150" class="w-50 mb-2">
+            <h6 class="fw-bold">Smartphones</h6>
+          </div>
         </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="p-3 bg-light rounded text-center shadow-sm">
-          <img src="https://via.placeholder.com/150" class="w-50 mb-2">
-          <h6 class="fw-bold">Laptops</h6>
+        <div class="col-6 col-md-3">
+          <div class="p-3 bg-light rounded text-center shadow-sm">
+            <img src="https://via.placeholder.com/150" class="w-50 mb-2">
+            <h6 class="fw-bold">Laptops</h6>
+          </div>
         </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="p-3 bg-light rounded text-center shadow-sm">
-          <img src="https://via.placeholder.com/150" class="w-50 mb-2">
-          <h6 class="fw-bold">Smartwatches</h6>
+        <div class="col-6 col-md-3">
+          <div class="p-3 bg-light rounded text-center shadow-sm">
+            <img src="https://via.placeholder.com/150" class="w-50 mb-2">
+            <h6 class="fw-bold">Smartwatches</h6>
+          </div>
         </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="p-3 bg-light rounded text-center shadow-sm">
-          <img src="https://via.placeholder.com/150" class="w-50 mb-2">
-          <h6 class="fw-bold">Audio Devices</h6>
+        <div class="col-6 col-md-3">
+          <div class="p-3 bg-light rounded text-center shadow-sm">
+            <img src="https://via.placeholder.com/150" class="w-50 mb-2">
+            <h6 class="fw-bold">Audio Devices</h6>
+          </div>
         </div>
-      </div>
+      <?php endif; ?>
     </div>
   </div>
 </section>
@@ -343,43 +445,54 @@
   <div class="container">
     <h2 class="fw-bold mb-4">Trending Electronics</h2>
     <div class="row g-4">
-
-      <!-- Trending Card 1 -->
-      <div class="col-md-3">
-        <div class="p-3 bg-white rounded shadow-sm">
-          <img src="https://via.placeholder.com/300" class="w-100 rounded mb-2" style="height:160px; object-fit:cover;">
-          <h6 class="fw-bold">iPhone 15 Pro</h6>
-          <p class="text-danger fw-bold mb-1">$999</p>
+      <?php if (!empty($trendingProducts)): ?>
+        <?php foreach ($trendingProducts as $product): ?>
+          <div class="col-md-3">
+            <div class="p-3 bg-white rounded shadow-sm">
+              <img src="<?= htmlspecialchars(getProductImage($product)) ?>" class="w-100 rounded mb-2" style="height:160px; object-fit:cover;" alt="<?= htmlspecialchars($product['name']) ?>">
+              <h6 class="fw-bold"><?= htmlspecialchars($product['name']) ?></h6>
+              <?php 
+                $finalPrice = getFinalPrice($product['price'], $product['discount'] ?? 0);
+              ?>
+              <p class="text-danger fw-bold mb-1">₹<?= number_format($finalPrice, 2) ?>
+                <?php if ($product['discount'] > 0): ?>
+                  <span class="text-secondary text-decoration-line-through ms-2">₹<?= number_format($product['price'], 2) ?></span>
+                <?php endif; ?>
+              </p>
+            </div>
+          </div>
+        <?php endforeach; ?>
+      <?php else: ?>
+        <!-- Fallback placeholder cards -->
+        <div class="col-md-3">
+          <div class="p-3 bg-white rounded shadow-sm">
+            <img src="https://via.placeholder.com/300" class="w-100 rounded mb-2" style="height:160px; object-fit:cover;">
+            <h6 class="fw-bold">iPhone 15 Pro</h6>
+            <p class="text-danger fw-bold mb-1">$999</p>
+          </div>
         </div>
-      </div>
-
-      <!-- Trending Card 2 -->
-      <div class="col-md-3">
-        <div class="p-3 bg-white rounded shadow-sm">
-          <img src="https://via.placeholder.com/300" class="w-100 rounded mb-2" style="height:160px; object-fit:cover;">
-          <h6 class="fw-bold">Samsung S24 Ultra</h6>
-          <p class="text-danger fw-bold mb-1">$1199</p>
+        <div class="col-md-3">
+          <div class="p-3 bg-white rounded shadow-sm">
+            <img src="https://via.placeholder.com/300" class="w-100 rounded mb-2" style="height:160px; object-fit:cover;">
+            <h6 class="fw-bold">Samsung S24 Ultra</h6>
+            <p class="text-danger fw-bold mb-1">$1199</p>
+          </div>
         </div>
-      </div>
-
-      <!-- Trending Card 3 -->
-      <div class="col-md-3">
-        <div class="p-3 bg-white rounded shadow-sm">
-          <img src="https://via.placeholder.com/300" class="w-100 rounded mb-2" style="height:160px; object-fit:cover;">
-          <h6 class="fw-bold">MacBook Pro M3</h6>
-          <p class="text-danger fw-bold mb-1">$1899</p>
+        <div class="col-md-3">
+          <div class="p-3 bg-white rounded shadow-sm">
+            <img src="https://via.placeholder.com/300" class="w-100 rounded mb-2" style="height:160px; object-fit:cover;">
+            <h6 class="fw-bold">MacBook Pro M3</h6>
+            <p class="text-danger fw-bold mb-1">$1899</p>
+          </div>
         </div>
-      </div>
-
-      <!-- Trending Card 4 -->
-      <div class="col-md-3">
-        <div class="p-3 bg-white rounded shadow-sm">
-          <img src="https://via.placeholder.com/300" class="w-100 rounded mb-2" style="height:160px; object-fit:cover;">
-          <h6 class="fw-bold">Sony WH-1000XM5</h6>
-          <p class="text-danger fw-bold mb-1">$349</p>
+        <div class="col-md-3">
+          <div class="p-3 bg-white rounded shadow-sm">
+            <img src="https://via.placeholder.com/300" class="w-100 rounded mb-2" style="height:160px; object-fit:cover;">
+            <h6 class="fw-bold">Sony WH-1000XM5</h6>
+            <p class="text-danger fw-bold mb-1">$349</p>
+          </div>
         </div>
-      </div>
-
+      <?php endif; ?>
     </div>
   </div>
 </section>
@@ -398,43 +511,71 @@
   <div class="container">
     <div class="d-flex justify-content-between mb-4">
       <h2 class="fw-bold">Popular Products</h2>
-      <span class="text-secondary">Showing 6 results</span>
+      <span class="text-secondary">Showing <?= count($popularProducts) ?> results</span>
     </div>
 
     <div class="row g-4">
-      <!-- Product Cards -->
-<div class="row g-4">
+      <?php if (!empty($popularProducts)): ?>
+        <?php foreach ($popularProducts as $product): ?>
+          <div class="col-md-4">
+            <div class="p-3 bg-white rounded shadow-sm border-0" style="border-radius:12px; position:relative;">
+              <?php if ($product['discount'] > 0): ?>
+                <!-- Discount Badge -->
+                <span class="badge text-white position-absolute" style="top:10px; left:10px; background:#ff4d4d; font-size:12px; padding:6px 10px; border-radius:6px;">-<?= number_format($product['discount'], 0) ?>%</span>
+              <?php endif; ?>
 
-  <!-- New Styled Product Card Example -->
-  <div class="col-md-4">
-    <div class="p-3 bg-white rounded shadow-sm border-0" style="border-radius:12px; position:relative;">
-      <!-- Discount Badge -->
-      <span class="badge text-white position-absolute" style="top:10px; left:10px; background:#ff4d4d; font-size:12px; padding:6px 10px; border-radius:6px;">-6%</span>
+              <!-- Product Image -->
+              <img src="<?= htmlspecialchars(getProductImage($product)) ?>" class="w-100 rounded mb-3" style="object-fit:cover; height:220px;" alt="<?= htmlspecialchars($product['name']) ?>" />
 
-      <!-- Product Image -->
-      <img src="https://via.placeholder.com/600x400" class="w-100 rounded mb-3" style="object-fit:cover; height:220px;" />
+              <!-- Vendor + Rating -->
+              <div class="d-flex justify-content-between small mb-1">
+                <span class="text-primary"><?= htmlspecialchars($product['category_name'] ?? 'Electronics') ?></span>
+                <span class="text-warning"><i class="bi bi-star-fill"></i> 0.00 (0)</span>
+              </div>
 
-      <!-- Vendor + Rating -->
-      <div class="d-flex justify-content-between small mb-1">
-        <span class="text-primary">Aceno Vendor</span>
-        <span class="text-warning"><i class="bi bi-star-fill"></i> 0.00 (0)</span>
-      </div>
+              <!-- Product Title -->
+              <h6 class="fw-bold mb-2"><?= htmlspecialchars($product['name']) ?></h6>
 
-      <!-- Product Title -->
-      <h6 class="fw-bold mb-2">Velatheme Demo Icon Pack</h6>
+              <!-- Price -->
+              <div class="mb-3">
+                <?php 
+                  $finalPrice = getFinalPrice($product['price'], $product['discount'] ?? 0);
+                ?>
+                <span class="fw-bold text-danger fs-5">₹<?= number_format($finalPrice, 2) ?></span>
+                <?php if ($product['discount'] > 0): ?>
+                  <span class="text-secondary text-decoration-line-through ms-2">₹<?= number_format($product['price'], 2) ?></span>
+                <?php endif; ?>
+              </div>
 
-      <!-- Price -->
-      <div class="mb-3">
-        <span class="fw-bold text-danger fs-5">$188.00</span>
-        <span class="text-secondary text-decoration-line-through ms-2">$200.00</span>
-      </div>
-
-      <!-- Add to Cart Button -->
-      <button class="btn w-100 text-white" style="background:#283b8f; border-radius:8px; padding:10px 0;">Add to Cart</button>
+              <!-- Add to Cart Button -->
+              <?php if ($customer_logged_in): ?>
+                <button class="btn w-100 text-white add-to-cart-btn" data-product-id="<?= $product['product_id'] ?>" style="background:#283b8f; border-radius:8px; padding:10px 0;">Add to Cart</button>
+              <?php else: ?>
+                <button class="btn w-100 text-white" data-bs-toggle="modal" data-bs-target="#loginModal" style="background:#283b8f; border-radius:8px; padding:10px 0;">Add to Cart</button>
+              <?php endif; ?>
+            </div>
+          </div>
+        <?php endforeach; ?>
+      <?php else: ?>
+        <!-- Fallback placeholder card -->
+        <div class="col-md-4">
+          <div class="p-3 bg-white rounded shadow-sm border-0" style="border-radius:12px; position:relative;">
+            <span class="badge text-white position-absolute" style="top:10px; left:10px; background:#ff4d4d; font-size:12px; padding:6px 10px; border-radius:6px;">-6%</span>
+            <img src="https://via.placeholder.com/600x400" class="w-100 rounded mb-3" style="object-fit:cover; height:220px;" />
+            <div class="d-flex justify-content-between small mb-1">
+              <span class="text-primary">Aceno Vendor</span>
+              <span class="text-warning"><i class="bi bi-star-fill"></i> 0.00 (0)</span>
+            </div>
+            <h6 class="fw-bold mb-2">Velatheme Demo Icon Pack</h6>
+            <div class="mb-3">
+              <span class="fw-bold text-danger fs-5">$188.00</span>
+              <span class="text-secondary text-decoration-line-through ms-2">$200.00</span>
+            </div>
+            <button class="btn w-100 text-white" style="background:#283b8f; border-radius:8px; padding:10px 0;">Add to Cart</button>
+          </div>
+        </div>
+      <?php endif; ?>
     </div>
-  </div>
-
-</div>
 
 <!-- Features -->
 <section id="features" class="py-5 bg-light container-fluid">
@@ -567,8 +708,76 @@
   </div>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Login Modal -->
+<div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="loginModalLabel">Customer Login</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="loginError" class="alert alert-danger d-none" role="alert"></div>
+        <form id="loginForm">
+          <div class="mb-3">
+            <label for="loginEmail" class="form-label">Email address</label>
+            <input type="email" class="form-control" id="loginEmail" name="email" required>
+          </div>
+          <div class="mb-3">
+            <label for="loginPassword" class="form-label">Password</label>
+            <input type="password" class="form-control" id="loginPassword" name="password" required>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Login</button>
+        </form>
+        <div class="mt-3 text-center">
+          <p class="mb-0">Don't have an account? <a href="auth/signup.php">Sign up here</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+// Handle login form submission
+document.getElementById('loginForm')?.addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const formData = new FormData(this);
+  formData.append('ajax', '1');
+  
+  const errorDiv = document.getElementById('loginError');
+  errorDiv.classList.add('d-none');
+  
+  try {
+    const response = await fetch('auth/customer_login.php', {
+      method: 'POST',
+      body: formData
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      // Reload page to show logged in state
+      window.location.reload();
+    } else {
+      errorDiv.textContent = data.error || 'Login failed';
+      errorDiv.classList.remove('d-none');
+    }
+  } catch (error) {
+    errorDiv.textContent = 'An error occurred. Please try again.';
+    errorDiv.classList.remove('d-none');
+  }
+});
+
+// Handle add to cart (if logged in)
+document.querySelectorAll('.add-to-cart-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const productId = this.getAttribute('data-product-id');
+    // TODO: Implement add to cart functionality
+    alert('Add to cart functionality will be implemented');
+  });
+});
+</script>
 </body>
 </html>

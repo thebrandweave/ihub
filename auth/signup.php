@@ -1,6 +1,6 @@
 <?php
 // auth/signup.php
-require_once __DIR__ . '/../admin/config/config.php';
+require_once __DIR__ . '/../config/config.php';
 session_start();
 
 $message = "";

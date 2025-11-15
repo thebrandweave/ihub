@@ -1,6 +1,6 @@
 <?php
 // auth/jwt_helper.php
-require_once __DIR__ . '/../admin/config/config.php';
+require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../admin/vendor/autoload.php'; // firebase/php-jwt
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;

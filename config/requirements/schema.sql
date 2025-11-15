@@ -167,3 +167,4 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
     INDEX (user_id),
     INDEX (token_hash)
 );
+

@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../admin/config/config.php';
+require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/jwt_helper.php';
 session_start();
 

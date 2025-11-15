@@ -1,5 +1,5 @@
 <?php
-// admin/config/config.php
+// config/config.php
 // Database connection
 $host = "localhost";
 $user = "root";
@@ -26,3 +26,4 @@ const COOKIE_PATH = '/';
 define('COOKIE_SECURE', isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on');
 const COOKIE_HTTPONLY = true;
 const COOKIE_SAMESITE = 'Strict'; // or 'Lax' depending on your needs
+

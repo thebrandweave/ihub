@@ -1,6 +1,6 @@
 <?php
 // auth/refresh.php
-require_once __DIR__ . '/../admin/config/config.php';
+require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/jwt_helper.php';
 
 $refreshRaw = $_COOKIE['refresh_token'] ?? null;
